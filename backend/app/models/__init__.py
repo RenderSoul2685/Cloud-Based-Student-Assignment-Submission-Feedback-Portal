@@ -1,0 +1,48 @@
+# Models Package Exports
+from backend.app.models.models import (
+    UserRole,
+    SubmissionStatus,
+    USERS_COLLECTION,
+    COURSES_COLLECTION,
+    ASSIGNMENTS_SUBCOLLECTION,
+    SUBMISSIONS_COLLECTION,
+)
+from backend.app.models.schemas import (
+    UserCreate,
+    UserRead,
+    RegisterRequest,
+    CourseCreate,
+    CourseCreateRequest,
+    CourseRead,
+    CourseUpdate,
+    AssignmentCreate,
+    AssignmentCreateRequest,
+    AssignmentRead,
+    AssignmentUpdate,
+    SubmissionCreate,
+    SubmissionRead,
+    SubmissionGrade,
+)
+
+__all__ = [
+    "UserRole",
+    "SubmissionStatus",
+    "USERS_COLLECTION",
+    "COURSES_COLLECTION",
+    "ASSIGNMENTS_SUBCOLLECTION",
+    "SUBMISSIONS_COLLECTION",
+    "UserCreate",
+    "UserRead",
+    "RegisterRequest",
+    "CourseCreate",
+    "CourseCreateRequest",
+    "CourseRead",
+    "CourseUpdate",
+    "AssignmentCreate",
+    "AssignmentCreateRequest",
+    "AssignmentRead",
+    "AssignmentUpdate",
+    "SubmissionCreate",
+    "SubmissionRead",
+    "SubmissionGrade",
+]

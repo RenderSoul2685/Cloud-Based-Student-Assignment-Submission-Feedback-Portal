@@ -1,0 +1,63 @@
+rules_version = '2';
+
+// ==============================================================================
+// Firebase Cloud Storage Security Rules for Student Assignment Portal
+// Stack: Next.js + FastAPI Backend + Firebase Storage (Spark Free Tier)
+// ==============================================================================
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // --------------------------------------------------------------------------
+    // Authentication & Authorization Helper Functions
+    // --------------------------------------------------------------------------
+
+    // Helper 1: Verify that the incoming request is made by a signed-in Firebase user
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper 2: Verify that the authenticated user is the student owner of this path segment
+    function isOwner(studentId) {
+      return isAuthenticated() && request.auth.uid == studentId;
+    }
+
+    // Helper 3: Validate basic file size constraints on client upload (max 20 MB)
+    function isValidFileSize() {
+      return request.resource.size <= 20 * 1024 * 1024;
+    }
+
+    // --------------------------------------------------------------------------
+    // Assignment Submissions Path:
+    // Pattern: assignments/{courseId}/{assignmentId}/{studentId}/{allPaths=**}
+    // --------------------------------------------------------------------------
+    match /assignments/{courseId}/{assignmentId}/{studentId}/{allPaths=**} {
+      // RULE 1: Only authenticated users (students, teachers, admins) can read/download assignment files.
+      // Unauthenticated public access is strictly blocked.
+      allow read: if isAuthenticated();
+
+      // RULE 2: A student can ONLY write/upload/update/delete files under their own studentId directory.
+      // Prevents cross-student file overwrite, tampering, or malicious deletion.
+      allow write: if isOwner(studentId) && isValidFileSize();
+    }
+
+    // --------------------------------------------------------------------------
+    // Course Materials & Rubrics Path (Optional instructor uploads):
+    // Pattern: courses/{courseId}/{allPaths=**}
+    // --------------------------------------------------------------------------
+    match /courses/{courseId}/{allPaths=**} {
+      // Authenticated users can view instructor course materials
+      allow read: if isAuthenticated();
+
+      // Write restricted to authenticated sessions
+      allow write: if isAuthenticated();
+    }
+
+    // --------------------------------------------------------------------------
+    // Default Fallback Rule:
+    // Strictly deny read and write access to all other paths across the bucket.
+    // --------------------------------------------------------------------------
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
