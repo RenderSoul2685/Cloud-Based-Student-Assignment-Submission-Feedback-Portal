@@ -6,11 +6,13 @@ from datetime import datetime, timezone
 from typing import Union
 
 
-def ensure_utc(dt: datetime) -> datetime:
+def ensure_utc(dt: Union[datetime, str]) -> datetime:
     """
     Ensures datetime is timezone-aware and converted to UTC.
-    If naive, assumes UTC.
+    Accepts datetime objects or ISO-formatted timestamp strings.
     """
+    if isinstance(dt, str):
+        dt = datetime.fromisoformat(dt.replace("Z", "+00:00"))
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)

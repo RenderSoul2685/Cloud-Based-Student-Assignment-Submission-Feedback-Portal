@@ -1,0 +1,95 @@
+rules_version = '2';
+
+// ==============================================================================
+// Cloud Firestore Security Rules for Student Assignment & Feedback Portal
+// Architecture: Backend-Mediated (FastAPI + firebase-admin Admin SDK)
+//
+// Security Strategy:
+// 1. All database writes (create, update, delete) MUST route through the FastAPI
+//    backend, which enforces strict Pydantic schema validation, server-side deadline
+//    verification, and RBAC ownership. Direct client-side writes are strictly blocked.
+// 2. Direct client reads from Firestore are scoped: users can read their own profile,
+//    authenticated users can read public courses and assignments, and submissions are
+//    restricted to the student owner and instructors.
+// ==============================================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --------------------------------------------------------------------------
+    // Helper Functions
+    // --------------------------------------------------------------------------
+
+    // Helper 1: Verify incoming request has a valid authenticated Firebase session
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper 2: Check if authenticated user matches target user ID
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Helper 3: Check if authenticated user possesses TEACHER or ADMIN custom claim
+    function isStaff() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'TEACHER' ||
+        request.auth.token.role == 'ADMIN'
+      );
+    }
+
+    // --------------------------------------------------------------------------
+    // User Profiles Collection: /users/{userId}
+    // --------------------------------------------------------------------------
+    match /users/{userId} {
+      // RULE 1: Users can read their own profile document; staff can view student profiles.
+      allow read: if isUser(userId) || isStaff();
+
+      // RULE 2: Direct client writes are blocked (managed exclusively via POST /api/register).
+      allow write: if false;
+    }
+
+    // --------------------------------------------------------------------------
+    // Courses Collection: /courses/{courseId}
+    // --------------------------------------------------------------------------
+    match /courses/{courseId} {
+      // RULE 1: All authenticated students and teachers can browse active courses.
+      allow read: if isAuthenticated();
+
+      // RULE 2: Direct client writes are blocked (managed via POST/DELETE /api/courses).
+      allow write: if false;
+
+      // ------------------------------------------------------------------------
+      // Assignment Subcollection: /courses/{courseId}/assignments/{assignmentId}
+      // ------------------------------------------------------------------------
+      match /assignments/{assignmentId} {
+        // RULE 1: All authenticated students and teachers can read active assignments.
+        allow read: if isAuthenticated();
+
+        // RULE 2: Direct client writes are blocked (managed via /api/courses/{id}/assignments).
+        allow write: if false;
+      }
+    }
+
+    // --------------------------------------------------------------------------
+    // Submissions Collection: /submissions/{submissionId}
+    // --------------------------------------------------------------------------
+    match /submissions/{submissionId} {
+      // RULE 1: Students can only read their own submissions; instructors can read all submissions.
+      allow read: if isAuthenticated() && (
+        resource.data.student_id == request.auth.uid ||
+        isStaff()
+      );
+
+      // RULE 2: Direct client writes are blocked (managed via POST /api/assignments/{id}/submit
+      // and PUT /api/submissions/{id}/grade with server-side file and deadline checks).
+      allow write: if false;
+    }
+
+    // --------------------------------------------------------------------------
+    // Default Deny Rule: Block any unmapped paths across Firestore
+    // --------------------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

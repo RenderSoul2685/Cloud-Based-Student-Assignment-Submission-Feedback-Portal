@@ -7,7 +7,7 @@ and student/instructor deliverable downloads with secure time-limited signed URL
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 
 from backend.app.models.models import UserRole, SubmissionStatus
 from backend.app.models.schemas import (
@@ -19,6 +19,7 @@ from backend.app.models.schemas import (
     DownloadUrlResponse,
 )
 from backend.app.middleware.auth_middleware import get_current_user, require_role
+from backend.app.limiter import limiter
 from backend.app.utils.deadline_utils import is_late
 from backend.app.utils.file_validation import validate_file_extension, validate_file_size
 from backend.app.utils.grading_stats import calculate_assignment_stats
@@ -52,7 +53,9 @@ def _get_user_role_str(user: Dict[str, Any]) -> str:
     status_code=status.HTTP_201_CREATED,
     summary="Submit or resubmit an assignment deliverable (Student only)",
 )
+@limiter.limit("10/minute")
 async def submit_assignment(
+    request: Request,
     assignment_id: str,
     file: UploadFile = File(..., description="Assignment file deliverable"),
     current_user: Dict[str, Any] = Depends(require_role(UserRole.STUDENT)),
@@ -208,7 +211,9 @@ async def submit_assignment(
     response_model=SubmissionDetailRead,
     summary="Grade and provide qualitative feedback on a student submission (Teacher/Admin only)",
 )
+@limiter.limit("30/minute")
 def grade_submission(
+    request: Request,
     submission_id: str,
     grade_request: SubmissionGrade,
     current_user: Dict[str, Any] = Depends(require_role(UserRole.TEACHER, UserRole.ADMIN)),

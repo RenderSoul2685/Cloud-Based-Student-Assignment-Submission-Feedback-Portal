@@ -3,13 +3,13 @@ Authentication & Role-Based Authorization Route Handlers.
 Provides Registration, User Profile (/api/me), and Role-Protected Example Endpoints.
 """
 from datetime import datetime, timezone
-from typing import Any, Dict
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from firebase_admin import auth, exceptions as fb_exceptions
 
 from backend.app.models.models import UserRole
 from backend.app.models.schemas import RegisterRequest, UserRead
 from backend.app.middleware.auth_middleware import get_current_user, require_role
+from backend.app.limiter import limiter
 from cloud.auth_service import create_firebase_user, AuthService
 from cloud.database_service import DatabaseService
 
@@ -30,8 +30,10 @@ def get_auth_service() -> AuthService:
     status_code=status.HTTP_201_CREATED,
     summary="Register a new student or teacher",
 )
+@limiter.limit("5/minute")
 def register_user(
-    request: RegisterRequest,
+    request: Request,
+    payload: RegisterRequest,
     db: DatabaseService = Depends(get_db_service),
     auth_srv: AuthService = Depends(get_auth_service),
 ):
@@ -42,7 +44,7 @@ def register_user(
     - Only 'STUDENT' and 'TEACHER' roles are allowed for self-registration.
     - Role 'ADMIN' is strictly rejected.
     """
-    role_val = request.role.value if hasattr(request.role, "value") else str(request.role)
+    role_val = payload.role.value if hasattr(payload.role, "value") else str(payload.role)
     role_upper = role_val.upper()
 
     if role_upper == UserRole.ADMIN.value or role_upper == "ADMIN":
@@ -60,22 +62,22 @@ def register_user(
     # 1. Create user in Firebase Authentication
     try:
         user_record = auth_srv.create_user(
-            email=request.email,
-            password=request.password,
-            display_name=request.name,
+            email=payload.email,
+            password=payload.password,
+            display_name=payload.name,
         )
         uid = user_record.uid
     except fb_exceptions.AlreadyExistsError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"An account with email '{request.email}' already exists.",
+            detail=f"An account with email '{payload.email}' already exists.",
         )
     except Exception as exc:
         err_msg = str(exc)
         if "EMAIL_EXISTS" in err_msg or "already exists" in err_msg.lower():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"An account with email '{request.email}' already exists.",
+                detail=f"An account with email '{payload.email}' already exists.",
             )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -92,8 +94,8 @@ def register_user(
     # 3. Create /users/{uid} document in Firestore
     now = datetime.now(timezone.utc)
     user_data = {
-        "name": request.name,
-        "email": request.email,
+        "name": payload.name,
+        "email": payload.email,
         "role": role_upper,
         "created_at": now,
     }
@@ -102,8 +104,8 @@ def register_user(
 
     return UserRead(
         uid=uid,
-        name=request.name,
-        email=request.email,
+        name=payload.name,
+        email=payload.email,
         role=UserRole(role_upper),
         created_at=now,
     )

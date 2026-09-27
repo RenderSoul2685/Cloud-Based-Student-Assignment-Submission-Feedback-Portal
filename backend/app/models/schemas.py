@@ -24,17 +24,17 @@ class UserCreate(UserBase):
 class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Full name of user")
     email: EmailStr = Field(..., description="User email address")
-    password: str = Field(..., min_length=6, description="Password (minimum 6 characters)")
+    password: str = Field(..., min_length=6, max_length=128, description="Password (6 to 128 characters)")
     role: UserRole = Field(..., description="User role (STUDENT or TEACHER)")
 
 
 class UserUpdate(BaseModel):
-    name: Optional[str] = Field(default=None, max_length=255)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     role: Optional[UserRole] = None
 
 
 class UserRead(UserBase):
-    uid: str = Field(..., description="Firebase Authentication UID / Document ID")
+    uid: str = Field(..., max_length=128, description="Firebase Authentication UID / Document ID")
     created_at: datetime = Field(..., description="Account creation timestamp")
 
     model_config = ConfigDict(from_attributes=True)
@@ -45,8 +45,8 @@ class UserRead(UserBase):
 # ==============================================================================
 class CourseBase(BaseModel):
     course_name: str = Field(..., min_length=1, max_length=255, description="Course title")
-    description: Optional[str] = Field(default="", description="Course description")
-    teacher_id: str = Field(..., description="Instructor's Firebase UID")
+    description: Optional[str] = Field(default="", max_length=2000, description="Course description")
+    teacher_id: str = Field(..., max_length=128, description="Instructor's Firebase UID")
 
 
 class CourseCreate(CourseBase):
@@ -55,17 +55,17 @@ class CourseCreate(CourseBase):
 
 class CourseCreateRequest(BaseModel):
     course_name: str = Field(..., min_length=1, max_length=255, description="Course title")
-    description: Optional[str] = Field(default="", description="Course description")
+    description: Optional[str] = Field(default="", max_length=2000, description="Course description")
 
 
 class CourseUpdate(BaseModel):
-    course_name: Optional[str] = Field(default=None, max_length=255)
-    description: Optional[str] = None
-    teacher_id: Optional[str] = None
+    course_name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    teacher_id: Optional[str] = Field(default=None, max_length=128)
 
 
 class CourseRead(CourseBase):
-    course_id: str = Field(..., description="Course Firestore Document ID")
+    course_id: str = Field(..., max_length=128, description="Course Firestore Document ID")
     created_at: datetime
     is_deleted: bool = Field(default=False, description="Soft-delete flag")
     deleted_at: Optional[datetime] = None
@@ -78,25 +78,25 @@ class CourseRead(CourseBase):
 # ==============================================================================
 class AssignmentBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Assignment title")
-    description: str = Field(..., description="Assignment instructions & criteria")
+    description: str = Field(..., min_length=1, max_length=10000, description="Assignment instructions & criteria")
     deadline: datetime = Field(..., description="Timezone-aware deadline timestamp")
     max_marks: float = Field(default=100.0, gt=0.0, allow_inf_nan=False, description="Max attainable score (must be > 0)")
-    allowed_file_types: str = Field(default="pdf,docx,png,jpg", description="Allowed extensions")
+    allowed_file_types: str = Field(default="pdf,docx,png,jpg", max_length=100, description="Allowed extensions")
     max_file_size_mb: float = Field(default=10.0, gt=0.0, allow_inf_nan=False, description="Max file size in MB (must be > 0)")
     allow_late_submission: bool = Field(default=True, description="Whether late submissions are permitted")
     resubmission_allowed: bool = Field(default=True, description="Whether student resubmission is allowed")
 
 
 class AssignmentCreate(AssignmentBase):
-    created_by: str = Field(..., description="Teacher UID who created the assignment")
+    created_by: str = Field(..., max_length=128, description="Teacher UID who created the assignment")
 
 
 class AssignmentCreateRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Assignment title")
-    description: str = Field(..., description="Assignment instructions & criteria")
+    description: str = Field(..., min_length=1, max_length=10000, description="Assignment instructions & criteria")
     deadline: datetime = Field(..., description="Timezone-aware deadline timestamp")
     max_marks: float = Field(default=100.0, gt=0.0, allow_inf_nan=False, description="Max attainable score (must be > 0)")
-    allowed_file_types: str = Field(default="pdf,docx,png,jpg", description="Allowed extensions")
+    allowed_file_types: str = Field(default="pdf,docx,png,jpg", max_length=100, description="Allowed extensions")
     max_file_size_mb: float = Field(default=10.0, gt=0.0, allow_inf_nan=False, description="Max file size in MB (must be > 0)")
     allow_late_submission: bool = Field(default=True, description="Whether late submissions are permitted")
     resubmission_allowed: bool = Field(default=True, description="Whether student resubmission is allowed")
@@ -104,19 +104,19 @@ class AssignmentCreateRequest(BaseModel):
 
 class AssignmentUpdate(BaseModel):
     title: Optional[str] = Field(default=None, min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: Optional[str] = Field(default=None, min_length=1, max_length=10000)
     deadline: Optional[datetime] = None
     max_marks: Optional[float] = Field(default=None, gt=0.0, allow_inf_nan=False)
-    allowed_file_types: Optional[str] = None
+    allowed_file_types: Optional[str] = Field(default=None, max_length=100)
     max_file_size_mb: Optional[float] = Field(default=None, gt=0.0, allow_inf_nan=False)
     allow_late_submission: Optional[bool] = None
     resubmission_allowed: Optional[bool] = None
 
 
 class AssignmentRead(AssignmentBase):
-    assignment_id: str = Field(..., description="Assignment subcollection document ID")
-    course_id: str = Field(..., description="Parent course document ID")
-    created_by: str
+    assignment_id: str = Field(..., max_length=128, description="Assignment subcollection document ID")
+    course_id: str = Field(..., max_length=128, description="Parent course document ID")
+    created_by: str = Field(..., max_length=128)
     created_at: datetime
     is_deleted: bool = Field(default=False, description="Soft-delete flag if submissions exist")
     deleted_at: Optional[datetime] = None
@@ -128,12 +128,12 @@ class AssignmentRead(AssignmentBase):
 # Submission Schemas (/submissions/{submissionId})
 # ==============================================================================
 class SubmissionBase(BaseModel):
-    assignment_id: str = Field(..., description="Associated assignment ID")
-    course_id: str = Field(..., description="Parent course ID")
-    student_id: str = Field(..., description="Submitting student UID")
-    file_name: str = Field(..., description="Original uploaded filename")
-    file_url: str = Field(..., description="Storage download URL or storage path")
-    storage_path: str = Field(..., description="Firebase Storage blob path")
+    assignment_id: str = Field(..., max_length=128, description="Associated assignment ID")
+    course_id: str = Field(..., max_length=128, description="Parent course ID")
+    student_id: str = Field(..., max_length=128, description="Submitting student UID")
+    file_name: str = Field(..., min_length=1, max_length=255, description="Original uploaded filename")
+    file_url: str = Field(..., min_length=1, max_length=1000, description="Storage download URL or storage path")
+    storage_path: str = Field(..., min_length=1, max_length=1000, description="Firebase Storage blob path")
     resubmission_count: int = Field(default=0, ge=0, description="Number of resubmissions")
 
 
@@ -146,7 +146,7 @@ class SubmissionCreate(SubmissionBase):
 
 class SubmissionGrade(BaseModel):
     marks: float = Field(..., ge=0.0, allow_inf_nan=False, description="Awarded marks")
-    feedback: Optional[str] = Field(default=None, description="Teacher feedback comments")
+    feedback: Optional[str] = Field(default=None, max_length=10000, description="Teacher feedback comments")
 
 
 class SubmissionRead(SubmissionBase):
